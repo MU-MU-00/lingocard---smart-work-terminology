@@ -1,0 +1,7 @@
+{
+  "name": "LingoCard - Smart Work Terminology",
+  "description": "A mobile-first terminology learning app with AI-powered definitions, pronunciation, swipe-to-organize workflow, and a spaced-repetition review system.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
