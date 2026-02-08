@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Group, TermData, SwipeDirection, AppView } from './types';
 import { generateTermDetails, playPronunciation } from './services/geminiService';
+import { fetchTerms, fetchGroups, persistTerms, persistGroups } from './services/supabaseData';
 import SwipeCard from './components/SwipeCard';
 import Sidebar from './components/Sidebar';
 import ReviewSession from './components/ReviewSession';
@@ -15,17 +16,28 @@ const DEFAULT_GROUPS: Group[] = [
   { id: 'group-1', name: 'Tech Terms', isDefault: false },
 ];
 
-// Exporting App as default to fix the import error in index.tsx
+function getInitialTerms(): TermData[] {
+  try {
+    const s = localStorage.getItem('lingocard_terms');
+    return s ? JSON.parse(s) : [];
+  } catch {
+    return [];
+  }
+}
+
+function getInitialGroups(): Group[] {
+  try {
+    const s = localStorage.getItem('lingocard_groups');
+    return s ? JSON.parse(s) : DEFAULT_GROUPS;
+  } catch {
+    return DEFAULT_GROUPS;
+  }
+}
+
 export default function App() {
-  const [terms, setTerms] = useState<TermData[]>(() => {
-    const saved = localStorage.getItem('lingocard_terms');
-    return saved ? JSON.parse(saved) : [];
-  });
-  
-  const [groups, setGroups] = useState<Group[]>(() => {
-    const saved = localStorage.getItem('lingocard_groups');
-    return saved ? JSON.parse(saved) : DEFAULT_GROUPS;
-  });
+  const [terms, setTerms] = useState<TermData[]>(getInitialTerms);
+  const [groups, setGroups] = useState<Group[]>(getInitialGroups);
+  const [dataReady, setDataReady] = useState(false);
 
   const [inputTerm, setInputTerm] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -39,6 +51,24 @@ export default function App() {
   const [isNewGroupModalOpen, setIsNewGroupModalOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
 
+  // 首屏从 Supabase 拉取（若已配置），否则用本地缓存
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const [nextTerms, nextGroups] = await Promise.all([fetchTerms(), fetchGroups()]);
+      if (cancelled) return;
+      setTerms(nextTerms);
+      if (nextGroups.length > 0) {
+        setGroups(nextGroups);
+      } else {
+        setGroups(DEFAULT_GROUPS);
+        await persistGroups(DEFAULT_GROUPS);
+      }
+      setDataReady(true);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   // Fixed viewport height for consistent mobile experience
   useEffect(() => {
     const setVh = () => {
@@ -51,12 +81,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('lingocard_terms', JSON.stringify(terms));
-  }, [terms]);
+    if (!dataReady) return;
+    persistTerms(terms);
+  }, [terms, dataReady]);
 
   useEffect(() => {
-    localStorage.setItem('lingocard_groups', JSON.stringify(groups));
-  }, [groups]);
+    if (!dataReady) return;
+    persistGroups(groups);
+  }, [groups, dataReady]);
 
   const handleGenerate = async () => {
     if (!inputTerm.trim()) return;
