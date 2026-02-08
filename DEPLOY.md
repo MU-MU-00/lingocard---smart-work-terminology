@@ -1,5 +1,24 @@
 # 分享网页 + 手机使用 + 数据不丢失（Supabase 免费方案）
 
+## 重要：手机直接用 = 先部署一次
+
+**目前还没有部署**，所以没有「网址」可以给手机打开。Supabase 只负责存数据，不提供网页地址。
+
+要做的事只有一件：**把项目部署到网上**（推荐 Vercel，免费、约 3 分钟）。部署完成后会得到一个 **https://xxx.vercel.app** 的链接，**以后在手机浏览器里打开这个链接就能用**，不用再开电脑、不用再运行本地。
+
+**最快步骤（Vercel）：**
+1. 打开 **https://vercel.com** → 用 GitHub 登录 → **Add New** → **Project** → 选择你的 **lingocard** 仓库。
+2. 在 **Environment Variables** 里添加三个变量（值从你的 `.env.local` 里复制）：
+   - `GEMINI_API_KEY`
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+3. 点 **Deploy**，等 1～2 分钟。
+4. 完成后会显示 **Visit** 或一个 `https://xxx.vercel.app` 的链接 → **把这个链接发到手机，用手机浏览器打开**，即可使用；可「添加到主屏幕」当 App 用。
+
+之后你只需要：手机打开这个链接，不再需要本地运行。
+
+---
+
 ## 方案说明
 
 - **数据存储**：用 **Supabase**（免费额度：500MB 数据库、50K 月活），术语和分组存在云端，刷新、换设备打开同一链接都能看到同一份数据；未配置 Supabase 时自动退化为浏览器 localStorage。

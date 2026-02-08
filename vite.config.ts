@@ -12,6 +12,7 @@ export default defineConfig(({ mode }) => {
     console.log('Vite config - Supabase:', supabaseUrl ? 'configured' : 'NOT SET');
     
     return {
+      base: process.env.VITE_BASE || '/',
       server: {
         port: 3000,
         host: '0.0.0.0',
