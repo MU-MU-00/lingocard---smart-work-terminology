@@ -92,7 +92,6 @@ export default function App() {
 
   const [sidebarEditMode, setSidebarEditMode] = useState(false);
   const [groupsOrderSnapshot, setGroupsOrderSnapshot] = useState<Group[] | null>(null);
-  const [sidebarGroupWithMenu, setSidebarGroupWithMenu] = useState<string | null>(null);
   const [exportModalGroupId, setExportModalGroupId] = useState<string | null>(null);
   const [exportStep, setExportStep] = useState<'format' | 'filename'>('format');
   const [exportFormat, setExportFormat] = useState<ExportFormat>('json');
@@ -425,13 +424,8 @@ export default function App() {
         onAddNewGroup={() => setIsNewGroupModalOpen(true)}
         onImportFromSidebar={() => triggerImportFile(null)}
         editMode={sidebarEditMode}
-        onToggleEditMode={() => { setSidebarEditMode(false); setSidebarGroupWithMenu(null); }}
-        onEnterEditMode={() => { setGroupsOrderSnapshot([...groups]); setSidebarEditMode(true); setSidebarGroupWithMenu(null); }}
-        groupWithMenu={sidebarGroupWithMenu}
-        onSetGroupWithMenu={setSidebarGroupWithMenu}
-        onDeleteGroup={(id) => setDeleteConfirmGroup(groups.find(g => g.id === id) || null)}
-        onExportGroup={handleExportGroup}
-        onImportToGroup={(id) => triggerImportFile(id)}
+        onToggleEditMode={() => setSidebarEditMode(false)}
+        onEnterEditMode={() => { setGroupsOrderSnapshot([...groups]); setSidebarEditMode(true); }}
         onReorderGroups={handleReorderGroups}
       />
 
@@ -444,7 +438,7 @@ export default function App() {
                 type="button"
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                onClick={() => { setSidebarEditMode(false); setSidebarGroupWithMenu(null); setGroupsOrderSnapshot(null); }}
+                onClick={() => { setSidebarEditMode(false); setGroupsOrderSnapshot(null); }}
                 className="touch-target px-8 py-4 rounded-2xl bg-orange-500 text-white font-bold shadow-lg hover:bg-orange-600 active:scale-95 transition-all"
               >
                 保存顺序
@@ -456,7 +450,6 @@ export default function App() {
                 onClick={() => {
                   if (groupsOrderSnapshot) setGroups(groupsOrderSnapshot);
                   setSidebarEditMode(false);
-                  setSidebarGroupWithMenu(null);
                   setGroupsOrderSnapshot(null);
                 }}
                 className="touch-target px-8 py-4 rounded-2xl bg-gray-500 text-white font-bold shadow-lg hover:bg-gray-600 active:scale-95 transition-all"
@@ -621,6 +614,9 @@ export default function App() {
                 onOpenNewGroupForMove={(cb) => { setPendingNewGroupCallback(() => cb); setIsNewGroupModalOpen(true); }}
                 onAddNewTerm={() => { setPreSelectedSaveGroup(selectedGroupId); setView(AppView.HOME); }}
                 onReorderTerms={handleReorderTerms}
+                onRequestDeleteGroup={() => setDeleteConfirmGroup(groups.find(g => g.id === selectedGroupId) || null)}
+                onRequestExportGroup={() => selectedGroupId && handleExportGroup(selectedGroupId)}
+                onRequestImportGroup={() => selectedGroupId && triggerImportFile(selectedGroupId)}
               />
             </motion.div>
           )}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { TermData, Group } from '../types';
-import { ArrowLeft, Volume2, Trash2, Undo2, FolderInput, ChevronLeft, ChevronRight, X, Plus, Settings, GripVertical } from 'lucide-react';
+import { ArrowLeft, Volume2, Trash2, Undo2, FolderInput, ChevronLeft, ChevronRight, X, Plus, Settings, GripVertical, Download, Upload } from 'lucide-react';
 import { motion, AnimatePresence, useAnimation, PanInfo, Reorder } from 'framer-motion';
 import SwipeCard from './SwipeCard';
 
@@ -18,6 +18,9 @@ interface GroupDetailProps {
   onOpenNewGroupForMove: (onCreated: (newGroupId: string) => void) => void;
   onAddNewTerm: () => void;
   onReorderTerms: (orderedTermIds: string[]) => void;
+  onRequestDeleteGroup: () => void;
+  onRequestExportGroup: () => void;
+  onRequestImportGroup: () => void;
 }
 
 const ListItem: React.FC<{ term: TermData; onPlay: () => void; onDelete: () => void; onMove: () => void; onClick: () => void }> = ({ term, onPlay, onDelete, onMove, onClick }) => {
@@ -100,12 +103,13 @@ const ListItem: React.FC<{ term: TermData; onPlay: () => void; onDelete: () => v
   )
 }
 
-const GroupDetail: React.FC<GroupDetailProps> = ({ group, groups, terms, onBack, onPlayAudio, onDeleteTerm, onUpdateTerm, onMoveTerm, onOpenNewGroupForMove, onAddNewTerm, onReorderTerms }) => {
+const GroupDetail: React.FC<GroupDetailProps> = ({ group, groups, terms, onBack, onPlayAudio, onDeleteTerm, onUpdateTerm, onMoveTerm, onOpenNewGroupForMove, onAddNewTerm, onReorderTerms, onRequestDeleteGroup, onRequestExportGroup, onRequestImportGroup }) => {
   const [zoomIndex, setZoomIndex] = useState<number | null>(null);
   const [direction, setDirection] = useState(0);
   const [moveTermId, setMoveTermId] = useState<string | null>(null);
   const [reorderMode, setReorderMode] = useState(false);
   const [reorderList, setReorderList] = useState<TermData[]>([]);
+  const [showGroupActions, setShowGroupActions] = useState(false);
 
   useEffect(() => {
     if (reorderMode) setReorderList([...terms]);
@@ -170,13 +174,28 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ group, groups, terms, onBack,
           <button type="button" onClick={handleReorderDone} className="touch-target min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full bg-primary text-white text-sm font-bold px-3 hover:bg-primary/90 active:bg-primary/80">
             完成
           </button>
+        ) : showGroupActions ? (
+          <div className="flex items-center gap-1">
+            <button type="button" onClick={() => { onRequestDeleteGroup(); setShowGroupActions(false); }} className="touch-target min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full text-red-600 hover:bg-red-50 active:bg-red-100" title="删除">
+              <Trash2 size={22} />
+            </button>
+            <button type="button" onClick={() => { onRequestImportGroup(); setShowGroupActions(false); }} className="touch-target min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 active:bg-gray-200" title="导入">
+              <Upload size={22} />
+            </button>
+            <button type="button" onClick={() => { onRequestExportGroup(); setShowGroupActions(false); }} className="touch-target min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 active:bg-gray-200" title="导出">
+              <Download size={22} />
+            </button>
+            <button type="button" onClick={() => setShowGroupActions(false)} className="touch-target min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full bg-primary text-white text-sm font-bold px-3 hover:bg-primary/90 active:bg-primary/80">
+              完成
+            </button>
+          </div>
         ) : (
           <>
             <button
               type="button"
-              onClick={() => setReorderMode(true)}
+              onClick={() => setShowGroupActions(true)}
               className="touch-target min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-700 active:bg-gray-200"
-              title="拖拽排序"
+              title="设置"
             >
               <Settings size={22} />
             </button>

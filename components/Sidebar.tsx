@@ -1,12 +1,12 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Group } from '../types';
-import { Plus, GripVertical, Trash2, Download, Upload } from 'lucide-react';
+import { Plus, GripVertical, Upload } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const LONG_PRESS_MS = 3000;
 
-/** 是否主要为指针设备（桌面）：用于长按/拖拽分支，不用于 hover 菜单 */
+/** 是否主要为指针设备（桌面）：用于长按/拖拽分支 */
 function isHoverCapable(): boolean {
   if (typeof window === 'undefined') return true;
   return window.matchMedia('(pointer: fine)').matches;
@@ -21,11 +21,6 @@ interface SidebarProps {
   editMode: boolean;
   onToggleEditMode: () => void;
   onEnterEditMode: () => void;
-  groupWithMenu: string | null;
-  onSetGroupWithMenu: (id: string | null) => void;
-  onDeleteGroup: (groupId: string) => void;
-  onExportGroup: (groupId: string) => void;
-  onImportToGroup: (groupId: string) => void;
   onReorderGroups: (newGroups: Group[]) => void;
 }
 
@@ -38,15 +33,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   editMode,
   onToggleEditMode,
   onEnterEditMode,
-  groupWithMenu,
-  onSetGroupWithMenu,
-  onDeleteGroup,
-  onExportGroup,
-  onImportToGroup,
   onReorderGroups,
 }) => {
   const [longPressTimer, setLongPressTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
-  const [groupHoverId, setGroupHoverId] = useState<string | null>(null);
   const [contextMenuGroupId, setContextMenuGroupId] = useState<string | null>(null);
   const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
   const [draggingGroupId, setDraggingGroupId] = useState<string | null>(null);
@@ -54,25 +43,22 @@ const Sidebar: React.FC<SidebarProps> = ({
   const lastOverIndexRef = useRef<number>(-1);
   const fromIndexRef = useRef<number>(-1);
   const longPressTarget = useRef<string | null>(null);
-  const actionMenuRef = useRef<HTMLDivElement | null>(null);
-  const hoverCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hoveredButtonRef = useRef<HTMLButtonElement | null>(null);
+  const longPressTriggeredRef = useRef(false);
   const hoverCapable = isHoverCapable();
 
   const handlePointerDown = useCallback((groupId: string) => {
     if (hoverCapable) return;
-    if (editMode) return;
     longPressTarget.current = groupId;
+    longPressTriggeredRef.current = false;
     const t = setTimeout(() => {
-      if (editMode) {
-        onSetGroupWithMenu(groupId);
-      } else {
+      if (longPressTarget.current) {
+        longPressTriggeredRef.current = true;
         onEnterEditMode();
       }
       setLongPressTimer(null);
     }, LONG_PRESS_MS);
     setLongPressTimer(t);
-  }, [editMode, onSetGroupWithMenu, onEnterEditMode]);
+  }, [hoverCapable, onEnterEditMode]);
 
   const handlePointerUp = useCallback(() => {
     if (longPressTimer) {
@@ -97,19 +83,12 @@ const Sidebar: React.FC<SidebarProps> = ({
     const rect = el.getBoundingClientRect();
     setContextMenuGroupId(groupId);
     setContextMenuPos({ x: rect.left + rect.width / 2, y: rect.bottom + 4 });
-    onSetGroupWithMenu(null);
   };
 
   useEffect(() => {
     const closeContext = () => setContextMenuGroupId(null);
     document.addEventListener('click', closeContext);
     return () => document.removeEventListener('click', closeContext);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (hoverCloseTimerRef.current) clearTimeout(hoverCloseTimerRef.current);
-    };
   }, []);
 
   const handleEnterEditFromContext = (e: React.MouseEvent) => {
@@ -188,27 +167,12 @@ const Sidebar: React.FC<SidebarProps> = ({
       <div className="flex-1 overflow-y-auto overflow-x-visible flex flex-col items-center space-y-4 no-scrollbar">
         {groups.map((group, index) => {
           const isSelected = selectedGroupId === group.id;
-          const showActionMenu = groupWithMenu === group.id || groupHoverId === group.id;
           return (
             <div
               key={group.id}
               className="relative flex items-center gap-0"
               data-group-id={group.id}
               data-group-index={index}
-              onMouseEnter={(e) => {
-                if (hoverCloseTimerRef.current) {
-                  clearTimeout(hoverCloseTimerRef.current);
-                  hoverCloseTimerRef.current = null;
-                }
-                const btn = (e.currentTarget as HTMLElement).querySelector('button');
-                if (btn) hoveredButtonRef.current = btn as HTMLButtonElement;
-                setGroupHoverId(group.id);
-              }}
-              onMouseLeave={(e) => {
-                const toEl = e.relatedTarget as Node | null;
-                if (toEl && actionMenuRef.current?.contains(toEl)) return;
-                hoverCloseTimerRef.current = setTimeout(() => setGroupHoverId(null), 120);
-              }}
             >
               <button
                 type="button"
@@ -234,77 +198,21 @@ const Sidebar: React.FC<SidebarProps> = ({
                 }}
                 onClick={() => {
                   if (longPressTimer) return;
+                  if (longPressTriggeredRef.current) {
+                    longPressTriggeredRef.current = false;
+                    return;
+                  }
                   if (editMode) return;
-                  setGroupHoverId(null);
                   onSelectGroup(group.id);
                 }}
-                className={`touch-target min-w-[56px] min-h-[56px] w-14 h-14 rounded-xl flex items-center justify-center text-white font-bold text-lg transition-all transform duration-200 active:scale-95
+                className={`touch-target touch-manipulation min-w-[56px] min-h-[56px] w-14 h-14 rounded-xl flex items-center justify-center text-white font-bold text-lg transition-all transform duration-200 active:scale-95
                   ${isSelected ? 'bg-orange-700 shadow-inner scale-95' : 'bg-orange-400 hover:bg-orange-600 shadow-md hover:scale-105'}
-                  ${editMode ? 'ring-2 ring-white ring-offset-2 ring-offset-orange-500 cursor-grab active:cursor-grabbing' : ''}
+                  ${editMode ? 'ring-1 ring-white ring-inset cursor-grab active:cursor-grabbing' : ''}
                   ${editMode && draggingGroupId === group.id ? 'opacity-90' : ''}
                 `}
               >
                 {group.name.slice(0, 2)}
               </button>
-              {showActionMenu && typeof document !== 'undefined' && createPortal(
-                <AnimatePresence>
-                  <motion.div
-                    ref={actionMenuRef}
-                    initial={{ opacity: 0, x: -8 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -8 }}
-                    style={{
-                      position: 'fixed',
-                      left: (hoveredButtonRef.current?.getBoundingClientRect?.()?.right ?? 0) + 8,
-                      top: hoveredButtonRef.current?.getBoundingClientRect?.()?.top ?? 0,
-                      zIndex: 9999,
-                    }}
-                    className="flex flex-col gap-1 rounded-xl bg-white shadow-lg border border-gray-100 py-1 min-w-[100px]"
-                    onMouseEnter={() => {
-                      if (hoverCloseTimerRef.current) {
-                        clearTimeout(hoverCloseTimerRef.current);
-                        hoverCloseTimerRef.current = null;
-                      }
-                    }}
-                    onMouseLeave={() => {
-                      if (hoverCloseTimerRef.current) clearTimeout(hoverCloseTimerRef.current);
-                      hoverCloseTimerRef.current = setTimeout(() => setGroupHoverId(null), 80);
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); onDeleteGroup(group.id); onSetGroupWithMenu(null); setGroupHoverId(null); }}
-                      className="flex items-center gap-2 px-4 py-2 text-left text-red-600 hover:bg-red-50 text-sm font-medium touch-target"
-                    >
-                      <Trash2 size={16} /> 删除
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); onImportToGroup(group.id); onSetGroupWithMenu(null); setGroupHoverId(null); }}
-                      className="flex items-center gap-2 px-4 py-2 text-left text-gray-700 hover:bg-gray-50 text-sm font-medium touch-target"
-                    >
-                      <Upload size={16} /> 导入词库
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); onExportGroup(group.id); onSetGroupWithMenu(null); setGroupHoverId(null); }}
-                      className="flex items-center gap-2 px-4 py-2 text-left text-gray-700 hover:bg-gray-50 text-sm font-medium touch-target"
-                    >
-                      <Download size={16} /> 导出词库
-                    </button>
-                    {!hoverCapable && (
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); onSetGroupWithMenu(null); }}
-                        className="px-4 py-1 text-gray-400 text-xs border-t border-gray-100 mt-1"
-                      >
-                        关闭
-                      </button>
-                    )}
-                  </motion.div>
-                </AnimatePresence>,
-                document.body
-              )}
             </div>
           );
         })}
