@@ -1,20 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TermData, Group } from '../types';
-import { ArrowLeft, Volume2, Trash2, Undo2, ChevronLeft, ChevronRight, X, Plus } from 'lucide-react';
-import { motion, AnimatePresence, useAnimation, PanInfo } from 'framer-motion';
+import { ArrowLeft, Volume2, Trash2, Undo2, FolderInput, ChevronLeft, ChevronRight, X, Plus, Settings, GripVertical } from 'lucide-react';
+import { motion, AnimatePresence, useAnimation, PanInfo, Reorder } from 'framer-motion';
 import SwipeCard from './SwipeCard';
+
+const SWIPE_WIDTH = 210; // Back 70 + Move 70 + Delete 70
 
 interface GroupDetailProps {
   group: Group;
+  groups: Group[];
   terms: TermData[];
   onBack: () => void;
   onPlayAudio: (text: string) => void;
   onDeleteTerm: (termId: string) => void;
   onUpdateTerm: (termId: string, updates: Partial<TermData>) => void;
-  onAddNewTerm: () => void; // Added for the "+" button
+  onMoveTerm: (termId: string, newGroupId: string) => void;
+  onOpenNewGroupForMove: (onCreated: (newGroupId: string) => void) => void;
+  onAddNewTerm: () => void;
+  onReorderTerms: (orderedTermIds: string[]) => void;
 }
 
-const ListItem: React.FC<{ term: TermData; onPlay: () => void; onDelete: () => void; onClick: () => void }> = ({ term, onPlay, onDelete, onClick }) => {
+const ListItem: React.FC<{ term: TermData; onPlay: () => void; onDelete: () => void; onMove: () => void; onClick: () => void }> = ({ term, onPlay, onDelete, onMove, onClick }) => {
   const controls = useAnimation();
   const [isOpen, setIsOpen] = useState(false);
 
@@ -24,7 +30,7 @@ const ListItem: React.FC<{ term: TermData; onPlay: () => void; onDelete: () => v
 
     if (offset < -50 || velocity < -500) {
       setIsOpen(true);
-      await controls.start({ x: -140 });
+      await controls.start({ x: -SWIPE_WIDTH });
     } else {
       setIsOpen(false);
       await controls.start({ x: 0 });
@@ -39,8 +45,8 @@ const ListItem: React.FC<{ term: TermData; onPlay: () => void; onDelete: () => v
 
   return (
     <div className="relative mb-3 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden h-[80px]">
-        {/* Background Layer (Menu) */}
-        <div className="absolute inset-y-0 right-0 w-[140px] flex">
+        {/* Background Layer (Menu): Back | Move | Delete */}
+        <div className="absolute inset-y-0 right-0 flex" style={{ width: SWIPE_WIDTH }}>
              <button 
                 type="button"
                 onClick={closeSwipe}
@@ -48,6 +54,14 @@ const ListItem: React.FC<{ term: TermData; onPlay: () => void; onDelete: () => v
              >
                  <Undo2 size={20} />
                  <span className="text-[10px] font-bold mt-1">Back</span>
+             </button>
+             <button 
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onMove(); }}
+                className="touch-target min-h-[80px] w-[70px] bg-primary text-white flex flex-col items-center justify-center active:bg-primary/90 transition-colors"
+             >
+                 <FolderInput size={20} />
+                 <span className="text-[10px] font-bold mt-1">Move</span>
              </button>
              <button 
                 type="button"
@@ -59,10 +73,10 @@ const ListItem: React.FC<{ term: TermData; onPlay: () => void; onDelete: () => v
              </button>
         </div>
 
-        {/* Foreground Layer (Content) - 手指左滑露出 Back/Delete */}
+        {/* Foreground Layer (Content) - 手指左滑露出 Back / Move / Delete */}
         <motion.div
             drag="x"
-            dragConstraints={{ left: -140, right: 0 }}
+            dragConstraints={{ left: -SWIPE_WIDTH, right: 0 }}
             dragElastic={0.12}
             animate={controls}
             onDragEnd={handleDragEnd}
@@ -86,9 +100,21 @@ const ListItem: React.FC<{ term: TermData; onPlay: () => void; onDelete: () => v
   )
 }
 
-const GroupDetail: React.FC<GroupDetailProps> = ({ group, terms, onBack, onPlayAudio, onDeleteTerm, onUpdateTerm, onAddNewTerm }) => {
+const GroupDetail: React.FC<GroupDetailProps> = ({ group, groups, terms, onBack, onPlayAudio, onDeleteTerm, onUpdateTerm, onMoveTerm, onOpenNewGroupForMove, onAddNewTerm, onReorderTerms }) => {
   const [zoomIndex, setZoomIndex] = useState<number | null>(null);
-  const [direction, setDirection] = useState(0); 
+  const [direction, setDirection] = useState(0);
+  const [moveTermId, setMoveTermId] = useState<string | null>(null);
+  const [reorderMode, setReorderMode] = useState(false);
+  const [reorderList, setReorderList] = useState<TermData[]>([]);
+
+  useEffect(() => {
+    if (reorderMode) setReorderList([...terms]);
+  }, [reorderMode]);
+
+  const handleReorderDone = () => {
+    onReorderTerms(reorderList.map(t => t.id));
+    setReorderMode(false);
+  };
 
   const handleNext = () => {
     if (zoomIndex !== null && zoomIndex < terms.length - 1) {
@@ -139,19 +165,54 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ group, terms, onBack, onPlayA
             <ArrowLeft size={24} />
         </button>
         <h1 className="font-bold text-xl text-gray-800">{group.name}</h1>
-        <div className="flex-1"></div>
-        <span className="text-xs font-bold bg-orange-100 text-orange-600 px-2 py-1 rounded-full">
-            {terms.length} Terms
-        </span>
+        <div className="flex-1" />
+        {reorderMode ? (
+          <button type="button" onClick={handleReorderDone} className="touch-target min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full bg-primary text-white text-sm font-bold px-3 hover:bg-primary/90 active:bg-primary/80">
+            完成
+          </button>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => setReorderMode(true)}
+              className="touch-target min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-700 active:bg-gray-200"
+              title="拖拽排序"
+            >
+              <Settings size={22} />
+            </button>
+            <span className="text-xs font-bold bg-orange-100 text-orange-600 px-2 py-1 rounded-full ml-1">
+              {terms.length} Terms
+            </span>
+          </>
+        )}
       </div>
 
-      {/* List Content */}
-      <div className="flex-1 overflow-y-auto p-4 no-scrollbar space-y-3 pb-10">
-        {terms.length === 0 ? (
+      {/* List Content - min-h-0 保证在 flex 下可滚动 */}
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 no-scrollbar space-y-3 pb-10">
+        {terms.length === 0 && !reorderMode ? (
             <div className="h-40 flex flex-col items-center justify-center text-gray-400 opacity-50">
                 <span className="text-4xl mb-2">📭</span>
                 <p>No terms in this group</p>
             </div>
+        ) : reorderMode ? (
+            <>
+              <p className="text-sm text-gray-500 mb-2">拖拽卡片上下调整顺序，完成后点击右上角「完成」</p>
+              <Reorder.Group axis="y" values={reorderList} onReorder={setReorderList} className="space-y-3">
+                {reorderList.map((term) => (
+                  <Reorder.Item key={term.id} value={term} className="cursor-grab active:cursor-grabbing">
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden h-[80px] flex items-center px-4 gap-3 touch-target">
+                      <div className="text-gray-400 shrink-0">
+                        <GripVertical size={22} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-bold text-gray-800 text-lg truncate">{term.term}</h3>
+                        <p className="text-gray-500 text-xs truncate">{term.definitionCn}</p>
+                      </div>
+                    </div>
+                  </Reorder.Item>
+                ))}
+              </Reorder.Group>
+            </>
         ) : (
             <div>
                 {terms.map((term, idx) => (
@@ -160,24 +221,88 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ group, terms, onBack, onPlayA
                         term={term} 
                         onPlay={() => onPlayAudio(term.term)}
                         onDelete={() => onDeleteTerm(term.id)}
+                        onMove={() => setMoveTermId(term.id)}
                         onClick={() => { setDirection(0); setZoomIndex(idx); }}
                     />
                 ))}
             </div>
         )}
 
-        {/* Add Card Button Placeholder */}
-        <button 
-          type="button"
-          onClick={onAddNewTerm}
-          className="w-full min-h-[80px] py-6 bg-white border-2 border-dashed border-gray-200 rounded-xl flex items-center justify-center text-gray-300 hover:border-primary hover:text-primary active:bg-gray-50 transition-all group touch-target"
-        >
-          <div className="flex flex-col items-center">
-            <Plus size={24} className="group-hover:scale-110 transition-transform" />
-            <span className="text-xs font-bold mt-1">Add New Term</span>
-          </div>
-        </button>
+        {/* Add Card Button Placeholder - 仅在非排序模式显示 */}
+        {!reorderMode && (
+          <button 
+            type="button"
+            onClick={onAddNewTerm}
+            className="w-full min-h-[80px] py-6 bg-white border-2 border-dashed border-gray-200 rounded-xl flex items-center justify-center text-gray-300 hover:border-primary hover:text-primary active:bg-gray-50 transition-all group touch-target"
+          >
+            <div className="flex flex-col items-center">
+              <Plus size={24} className="group-hover:scale-110 transition-transform" />
+              <span className="text-xs font-bold mt-1">新增术语</span>
+            </div>
+          </button>
+        )}
       </div>
+
+      {/* Move term: 选择词库 / 新建词组 */}
+      <AnimatePresence>
+        {moveTermId !== null && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-6 bg-black/40 backdrop-blur-sm"
+            onClick={() => setMoveTermId(null)}
+          >
+            <motion.div
+              initial={{ y: 100 }}
+              animate={{ y: 0 }}
+              exit={{ y: 100 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-t-3xl sm:rounded-3xl p-6 w-full max-w-md shadow-2xl max-h-[80vh] overflow-y-auto"
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold">修改词位置</h2>
+                <button type="button" onClick={() => setMoveTermId(null)} className="touch-target min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-400 hover:text-gray-600 rounded-full">
+                  <X size={24} />
+                </button>
+              </div>
+              <p className="text-sm text-gray-500 mb-4">选择要移动到的词库，或新建词库</p>
+              <div className="space-y-2">
+                {groups.map((g) => (
+                  <button
+                    key={g.id}
+                    type="button"
+                    onClick={() => {
+                      if (g.id === group.id) return;
+                      onMoveTerm(moveTermId, g.id);
+                      setMoveTermId(null);
+                    }}
+                    disabled={g.id === group.id}
+                    className="w-full p-4 rounded-xl bg-gray-50 text-left font-bold hover:bg-primary/10 hover:text-primary transition-colors flex items-center justify-between disabled:opacity-50 disabled:cursor-not-allowed touch-target"
+                  >
+                    {g.name}
+                    {g.id === group.id && <span className="text-xs text-gray-400">(当前)</span>}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    onOpenNewGroupForMove((newGroupId) => {
+                      onMoveTerm(moveTermId, newGroupId);
+                      setMoveTermId(null);
+                    });
+                    setMoveTermId(null);
+                  }}
+                  className="w-full p-4 rounded-xl border-2 border-dashed border-primary/40 text-primary font-bold hover:bg-primary/10 transition-colors touch-target flex items-center justify-center gap-2"
+                >
+                  <Plus size={20} />
+                  新建词组
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Full-screen Zoomed Card View */}
       <AnimatePresence>
